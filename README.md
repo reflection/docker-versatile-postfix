@@ -53,8 +53,21 @@ this creates a new smtp server which listens on port _25_, stores mail beneath _
 
 The _/dkim_ directory has to contain a DKIM-Key _(see above)_ with the name __dkim.key__
 
-It has serveral user accounts like _user1_ with password "_password_" and
+It has several user accounts like _user1_ with password "_password_" and
 a mail address _user1@yourdomain.com_
+
+## Setting host and single user/password with environment variables
+You can alternatively set the HOST, USER and PASSWORD environment variables:
+
+	docker run -p 25:25 -v /maildirs:/var/mail \
+		-v /dkim:/etc/postfix/dkim/ \
+		-e 'ALIASES=postmaster:root;hostmaster:root;webmaster:root' \
+    -e 'HOST=yourdomain.com' \
+    -e 'USER=user' \
+    -e 'PASSWORD=password' \
+		marvambass/versatile-postfix
+
+This change simplifies integrating this postfix service with docker-compose.
 
 ## DKIM
 

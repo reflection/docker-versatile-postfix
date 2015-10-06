@@ -67,4 +67,3 @@ RUN chmod a+x /opt/startup.sh
 
 # Docker startup
 ENTRYPOINT ["/opt/startup.sh"]
-CMD ["-h"]

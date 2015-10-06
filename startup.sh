@@ -25,7 +25,7 @@ by MarvAmBass
 EOF
 }
 
-if [ "-h" == "$1" ] || [ "--help" == "$1" ] || [ -z $1 ] || [ "" == "$1" ]
+if [ "-h" == "$1" ] || [ "--help" == "$1" ]
 then
   print_help
   exit 0
@@ -40,55 +40,77 @@ fi
 echo ">> setting up postfix for: $1"
 
 # add domain
-postconf -e myhostname="$1"
-postconf -e mydestination="$1"
-echo "$1" > /etc/mailname
-echo "Domain $1" >> /etc/opendkim.conf
+if [ -z ${HOST+x} ]; then
+  postconf -e myhostname="$1"
+  postconf -e mydestination="$1"
+  echo "$1" > /etc/mailname
+  echo "Domain $1" >> /etc/opendkim.conf
+else
+  postconf -e myhostname="$HOST"
+  postconf -e mydestination="$HOST"
+  echo "$HOST" > /etc/mailname
+  echo "Domain $HOST" >> /etc/opendkim.conf
+fi
 
-if [ ${#@} -gt 1 ]
-then
-  echo ">> adding users..."
+# support adding one user with USER and PASSWORD env variables
+# otherwise default to adding arbitrary users from arguments
+if [ -z ${USER+x} ]; then
+  if [ ${#@} -gt 1 ]
+  then
+    echo ">> adding users..."
 
-  # all arguments but skip first argumenti
-  i=0
-  for ARG in "$@"
-  do
-    if [ $i -gt 0 ] && [ "$ARG" != "${ARG/://}" ]
-    then
-      USER=`echo "$ARG" | cut -d":" -f1`
-      echo "    >> adding user: $USER"
-      useradd -s /bin/bash $USER
-      echo "$ARG" | chpasswd
-      if [ ! -d /var/spool/mail/$USER ]
+    # all arguments but skip first argumenti
+    i=0
+    for ARG in "$@"
+    do
+      if [ $i -gt 0 ] && [ "$ARG" != "${ARG/://}" ]
       then
-        mkdir /var/spool/mail/$USER
+        USER=`echo "$ARG" | cut -d":" -f1`
+        echo "    >> adding user: $USER"
+        useradd -s /bin/bash $USER
+        echo "$ARG" | chpasswd
+        if [ ! -d /var/spool/mail/$USER ]
+        then
+          mkdir /var/spool/mail/$USER
+        fi
+        chown -R $USER:mail /var/spool/mail/$USER
+        chmod -R a=rwx /var/spool/mail/$USER
+        chmod -R o=- /var/spool/mail/$USER
       fi
-      chown -R $USER:mail /var/spool/mail/$USER
-      chmod -R a=rwx /var/spool/mail/$USER
-      chmod -R o=- /var/spool/mail/$USER
-    fi
 
-    i=`expr $i + 1`
-  done
+      i=`expr $i + 1`
+    done
+  fi
+else
+  echo "    >> adding user: $USER"
+  useradd -s /bin/bash $USER
+  echo "$USER:$PASSWORD" | chpasswd
+  if [ ! -d /var/spool/mail/$USER ]
+  then
+    mkdir /var/spool/mail/$USER
+  fi
+  chown -R $USER:mail /var/spool/mail/$USER
+  chmod -R a=rwx /var/spool/mail/$USER
+  chmod -R o=- /var/spool/mail/$USER
 fi
 
 # DKIM
 if [ -z ${DISABLE_DKIM+x} ]
 then
   echo ">> enable DKIM support"
-  
+
   if [ -z ${DKIM_CANONICALIZATION+x} ]
   then
     DKIM_CANONICALIZATION="simple"
   fi
-  
+
   echo "Canonicalization $DKIM_CANONICALIZATION" >> /etc/opendkim.conf
-  
+
   postconf -e milter_default_action="accept"
   postconf -e milter_protocol="2"
   postconf -e smtpd_milters="inet:localhost:8891"
   postconf -e non_smtpd_milters="inet:localhost:8891"
-  
+
   # add dkim if necessary
   if [ ! -f /etc/postfix/dkim/dkim.key ]
   then
